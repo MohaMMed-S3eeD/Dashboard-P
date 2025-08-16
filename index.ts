@@ -1,4 +1,5 @@
 import express, { Request, Response, NextFunction } from 'express';
+import path from 'path';
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -6,8 +7,12 @@ const PORT = process.env.PORT || 3000;
 // Middlewares
 app.use(express.json());
 
+// View Engine Setup
+app.set('views', path.join(__dirname, 'views'));
+app.set('view engine', 'ejs');
+
 app.get('/', (req, res) => {
-    res.send('Demo API is running');
+    res.render('index');
 });
 
 // Health Check
@@ -86,9 +91,12 @@ app.use((err: Error, req: Request, res: Response, next: NextFunction) => {
     res.status(500).json({ error: 'Internal Server Error' });
 });
 
-app.listen(PORT, () => {
-    console.log(`Server running on http://localhost:${PORT}`);
-});
+// For local development
+if (process.env.NODE_ENV !== 'production') {
+    app.listen(PORT, () => {
+        console.log(`Server running on http://localhost:${PORT}`);
+    });
+}
 
 // Export the Express app for Vercel
 export default app;

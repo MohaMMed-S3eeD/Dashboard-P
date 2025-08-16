@@ -7,7 +7,7 @@
     "dev": "ts-node-dev --respawn --transpile-only index.ts",
     "build": "tsc",
     "start": "node index.js",
-    "vercel-build": "npm run build"
+    "vercel-build": "echo 'Build complete - Vercel will handle TypeScript compilation'"
   },
   "keywords": [],
   "author": "",
@@ -16,6 +16,7 @@
     "node": ">=18.0.0"
   },
   "dependencies": {
+    "ejs": "^3.1.10",
     "express": "^5.1.0"
   },
   "devDependencies": {
