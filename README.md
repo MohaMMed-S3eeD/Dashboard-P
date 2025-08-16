@@ -56,10 +56,13 @@ vercel --prod
 dashboard/
 ├── src/
 │   └── index.ts       # الملف الرئيسي للـ API
+├── api/
+│   └── index.ts       # Entry point لـ Vercel
 ├── dist/              # ملفات JavaScript المبنية
 ├── package.json       
 ├── tsconfig.json      # إعدادات TypeScript
 ├── vercel.json        # إعدادات Vercel
+├── .nvmrc            # إصدار Node.js
 └── README.md
 ```
 
@@ -82,3 +85,28 @@ dashboard/
 - المشروع مُهيأ للعمل مع Node.js runtime في Vercel
 - ملف `vercel.json` يحدد كيفية التعامل مع المسارات
 - Express app يتم تصديره كـ default export ليعمل مع Vercel
+- يتم استخدام `api/index.ts` كـ entry point للنشر على Vercel
+
+## استكشاف الأخطاء
+
+### إذا فشل النشر:
+
+1. تأكد من أن Node.js إصدار 18+ مستخدم
+2. تحقق من أن جميع المكتبات مثبتة بشكل صحيح
+3. تأكد من أن ملف `api/index.ts` موجود ويستورد التطبيق بشكل صحيح
+
+### للاختبار محلياً:
+
+```bash
+# بناء المشروع
+npm run build
+
+# تشغيل النسخة المبنية
+npm start
+```
+
+### للحصول على logs من Vercel:
+
+```bash
+vercel logs [deployment-url]
+```
