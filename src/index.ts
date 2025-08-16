@@ -1,7 +1,7 @@
 import express, { Request, Response, NextFunction } from 'express';
 
 const app = express();
-const PORT = 3000;
+const PORT = process.env.PORT || 3000;
 
 // Middlewares
 app.use(express.json());
@@ -89,3 +89,6 @@ app.use((err: Error, req: Request, res: Response, next: NextFunction) => {
 app.listen(PORT, () => {
     console.log(`Server running on http://localhost:${PORT}`);
 });
+
+// Export the Express app for Vercel
+export default app;
