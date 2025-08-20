@@ -1,19 +1,66 @@
 import express, { Request, Response, NextFunction } from 'express';
 import path from 'path';
+import fs from 'fs';
+import fsPromises from 'fs/promises';
 
 const app = express();
 const PORT = process.env.PORT || 3000;
 
 // Middlewares
 app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
 
 // View Engine Setup
 app.set('views', path.join(__dirname, 'views'));
 app.set('view engine', 'ejs');
 
-app.get('/', (req, res) => {
-    res.render('index');
+app.get('/', async (req: Request, res: Response) => {
+    try {
+        await renderHome(res);
+    } catch (e) {
+        console.error(e);
+        res.status(500).send('Failed to load home page');
+    }
 });
+
+// Shared types
+type User = { id: number; name: string; email: string };
+
+// File-based storage helpers
+const dataDir = path.join(__dirname, 'data');
+const dataFile = path.join(dataDir, 'users.json');
+
+async function ensureDataFileExists(): Promise<void> {
+    try {
+        await fsPromises.mkdir(dataDir, { recursive: true });
+        await fsPromises.access(dataFile, fs.constants.F_OK).catch(async () => {
+            await fsPromises.writeFile(dataFile, '[]', 'utf-8');
+        });
+    } catch (error) {
+        console.error('Failed to ensure data file exists:', error);
+        throw error;
+    }
+}
+
+async function readUsersFromFile(): Promise<User[]> {
+    await ensureDataFileExists();
+    const raw = await fsPromises.readFile(dataFile, 'utf-8');
+    try {
+        const parsed = JSON.parse(raw);
+        return Array.isArray(parsed) ? parsed : [];
+    } catch {
+        return [];
+    }
+}
+
+async function writeUsersToFile(fileUsers: User[]): Promise<void> {
+    await fsPromises.writeFile(dataFile, JSON.stringify(fileUsers, null, 2), 'utf-8');
+}
+
+async function renderHome(res: Response, locals?: Record<string, unknown>): Promise<void> {
+    const fileUsers = await readUsersFromFile();
+    res.render('index', { users: fileUsers, ...(locals || {}) });
+}
 
 // Health Check
 app.get('/api/health', (req: Request, res: Response) => {
@@ -21,7 +68,6 @@ app.get('/api/health', (req: Request, res: Response) => {
 });
 
 // In-memory Users Store
-type User = { id: number; name: string; email: string };
 const users: User[] = [
     { id: 1, name: 'Alice', email: 'alice@example.com' },
     { id: 2, name: 'Bob', email: 'bob@example.com' }
@@ -31,6 +77,16 @@ let nextUserId = 3;
 // Users - List
 app.get('/api/users', (req: Request, res: Response) => {
     res.json(users);
+});
+
+// File-backed Users - List
+app.get('/api/users-file', async (req: Request, res: Response) => {
+    try {
+        const fileUsers = await readUsersFromFile();
+        res.json(fileUsers);
+    } catch (e) {
+        res.status(500).json({ error: 'Failed to read users from file' });
+    }
 });
 
 // Users - Get by ID
@@ -52,6 +108,35 @@ app.post('/api/users', (req: Request<unknown, unknown, Partial<User>>, res: Resp
     const newUser: User = { id: nextUserId++, name, email };
     users.push(newUser);
     res.status(201).json(newUser);
+});
+
+// Render Create User Form
+app.get('/users/new', (req: Request, res: Response) => {
+    res.render('new-user');
+});
+
+// Handle Create User (Form) -> Save to JSON file
+app.post('/users', async (req: Request, res: Response) => {
+    const name = (req.body?.name || '').toString().trim();
+    const email = (req.body?.email || '').toString().trim();
+    if (!name || !email) {
+        res.status(400);
+        await renderHome(res, { error: 'Name and email are required', name, email });
+        return;
+    }
+    try {
+        const fileUsers = await readUsersFromFile();
+        const nextId = fileUsers.reduce((max, u) => (u.id > max ? u.id : max), 0) + 1;
+        const newUser: User = { id: nextId, name, email };
+        fileUsers.push(newUser);
+        await writeUsersToFile(fileUsers);
+        return res.redirect('/');
+    } catch (e) {
+        console.error(e);
+        res.status(500);
+        await renderHome(res, { error: 'Failed to save user. Please try again.', name, email });
+        return;
+    }
 });
 
 // Users - Update (PUT)

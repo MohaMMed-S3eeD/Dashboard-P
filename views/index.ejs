@@ -124,6 +124,30 @@
         font-weight: 700;
       }
 
+      /* Form + List styles */
+      .two-col {
+        display: grid;
+        gap: 16px;
+        grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+        margin-top: 12px;
+      }
+      .panel {
+        background: #f8fafc;
+        border: 1px solid #e5e7eb;
+        border-radius: 10px;
+        padding: 14px;
+      }
+      .panel h3 { margin: 0 0 10px; font-size: 16px; }
+      form .field { display: grid; gap: 6px; margin-bottom: 10px; }
+      form label { font-size: 14px; font-weight: 600; }
+      form input { border: 1px solid #cbd5e1; border-radius: 8px; padding: 10px 12px; font-size: 14px; }
+      .actions { display: flex; gap: 10px; }
+      .btn { appearance: none; border: 1px solid #e5e7eb; background: #fff; padding: 10px 14px; border-radius: 8px; cursor: pointer; font-weight: 600; }
+      .btn.primary { background: #eef2ff; border-color: #c7d2fe; color: #3730a3; }
+      .error { background: #fef2f2; color: #b91c1c; border: 1px solid #fecaca; padding: 10px; border-radius: 8px; margin-bottom: 10px; }
+      table { width: 100%; border-collapse: collapse; }
+      th, td { text-align: left; padding: 10px; border-bottom: 1px solid #e5e7eb; font-size: 14px; }
+
       footer {
         text-align: center;
         margin-top: 18px;
@@ -150,6 +174,12 @@
           <a class="link" href="/api/users" target="_blank" rel="noopener"
             >Users List · /api/users</a
           >
+          <a class="link" href="/api/users-file" target="_blank" rel="noopener"
+            >Users (File) · /api/users-file</a
+          >
+          <a class="link primary" href="/users/new" rel="noopener"
+            >Create User (Form) · /users/new</a
+          >
           <a
             class="link accent"
             href="/api/users/1"
@@ -157,6 +187,58 @@
             rel="noopener"
             >Sample User · /api/users/1</a
           >
+        </section>
+
+        <section class="section">
+          <div class="two-col">
+            <div class="panel">
+              <h3>Create User</h3>
+              <% if (typeof error !== 'undefined' && error) { %>
+                <div class="error"><%= error %></div>
+              <% } %>
+              <form action="/users" method="post" novalidate>
+                <div class="field">
+                  <label for="name">Name</label>
+                  <input id="name" name="name" type="text" required value="<%= typeof name !== 'undefined' ? name : '' %>" />
+                </div>
+                <div class="field">
+                  <label for="email">Email</label>
+                  <input id="email" name="email" type="email" required value="<%= typeof email !== 'undefined' ? email : '' %>" />
+                </div>
+                <div class="actions">
+                  <button class="btn primary" type="submit">Save</button>
+                  <a class="btn" href="/api/users-file" target="_blank" rel="noopener">Open JSON (debug)</a>
+                </div>
+              </form>
+            </div>
+
+            <div class="panel">
+              <h3>Users</h3>
+              <% const list = Array.isArray(users) ? users : []; %>
+              <% if (list.length === 0) { %>
+                <p>No users yet.</p>
+              <% } else { %>
+                <table aria-label="Users">
+                  <thead>
+                    <tr>
+                      <th style="width: 64px;">ID</th>
+                      <th>Name</th>
+                      <th>Email</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <% list.forEach(function(u) { %>
+                      <tr>
+                        <td><%= u.id %></td>
+                        <td><%= u.name %></td>
+                        <td><%= u.email %></td>
+                      </tr>
+                    <% }) %>
+                  </tbody>
+                </table>
+              <% } %>
+            </div>
+          </div>
         </section>
 
         <section class="section" aria-live="polite" aria-busy="false">
