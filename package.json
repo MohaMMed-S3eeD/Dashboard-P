@@ -16,9 +16,9 @@
     "node": ">=18.0.0"
   },
   "dependencies": {
+    "@vercel/blob": "^0.23.4",
     "ejs": "^3.1.10",
-    "express": "^5.1.0",
-    "@vercel/blob": "^0.23.0"
+    "express": "^5.1.0"
   },
   "devDependencies": {
     "@types/express": "^5.0.3",

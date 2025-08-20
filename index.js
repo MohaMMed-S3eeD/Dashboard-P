@@ -58,7 +58,7 @@ async function writeUsersToFile(fileUsers) {
 async function readUsersFromBlob() {
     try {
         const blobs = await (0, blob_1.list)({ prefix: blobKey, limit: 1 });
-        const entry = blobs.blobs.find(b => b.pathname === blobKey) || blobs.blobs[0];
+        const entry = blobs.blobs.find((b) => b.pathname === blobKey) || blobs.blobs[0];
         if (!entry)
             return [];
         const res = await fetch(entry.url);

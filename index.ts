@@ -66,7 +66,7 @@ async function writeUsersToFile(fileUsers: User[]): Promise<void> {
 async function readUsersFromBlob(): Promise<User[]> {
     try {
         const blobs = await list({ prefix: blobKey, limit: 1 });
-        const entry = blobs.blobs.find(b => b.pathname === blobKey) || blobs.blobs[0];
+        const entry = blobs.blobs.find((b: { pathname: string }) => b.pathname === blobKey) || blobs.blobs[0];
         if (!entry) return [];
         const res = await fetch(entry.url);
         if (!res.ok) return [];
