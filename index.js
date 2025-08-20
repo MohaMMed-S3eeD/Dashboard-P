@@ -170,11 +170,17 @@ app.post('/users', async (req, res) => {
         return;
     }
     try {
-        const currentUsers = await readUsers();
-        const nextId = currentUsers.reduce((max, u) => (u.id > max ? u.id : max), 0) + 1;
-        const newUser = { id: nextId, name, email };
-        currentUsers.push(newUser);
-        await writeUsers(currentUsers);
+        if (isDbEnabled()) {
+            await ensureUsersTable();
+            await (0, postgres_1.sql) `INSERT INTO users (name, email) VALUES (${name}, ${email});`;
+        }
+        else {
+            const currentUsers = await readUsers();
+            const nextId = currentUsers.reduce((max, u) => (u.id > max ? u.id : max), 0) + 1;
+            const newUser = { id: nextId, name, email };
+            currentUsers.push(newUser);
+            await writeUsers(currentUsers);
+        }
         return res.redirect('/');
     }
     catch (e) {
