@@ -3,6 +3,7 @@ import path from 'path';
 import fs from 'fs';
 import fsPromises from 'fs/promises';
 import { put, list } from '@vercel/blob';
+import { sql } from '@vercel/postgres';
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -34,6 +35,10 @@ const blobKey = 'data/users.json';
 
 function isBlobEnabled(): boolean {
     return Boolean(process.env.BLOB_READ_WRITE_TOKEN || process.env.VERCEL);
+}
+
+function isDbEnabled(): boolean {
+    return Boolean(process.env.POSTGRES_URL || process.env.POSTGRES_PRISMA_URL || process.env.POSTGRES_URL_NON_POOLING);
 }
 
 async function ensureDataFileExists(): Promise<void> {
@@ -86,13 +91,41 @@ async function writeUsersToBlob(fileUsers: User[]): Promise<void> {
 }
 
 async function readUsers(): Promise<User[]> {
+    if (isDbEnabled()) return await readUsersFromDb();
     if (isBlobEnabled()) return await readUsersFromBlob();
     return await readUsersFromFile();
 }
 
 async function writeUsers(fileUsers: User[]): Promise<void> {
+    if (isDbEnabled()) return await writeUsersToDb(fileUsers);
     if (isBlobEnabled()) return await writeUsersToBlob(fileUsers);
     return await writeUsersToFile(fileUsers);
+}
+
+// PostgreSQL helpers
+async function ensureUsersTable(): Promise<void> {
+    await sql`
+        CREATE TABLE IF NOT EXISTS users (
+            id SERIAL PRIMARY KEY,
+            name TEXT NOT NULL,
+            email TEXT NOT NULL
+        );
+    `;
+}
+
+async function readUsersFromDb(): Promise<User[]> {
+    await ensureUsersTable();
+    const { rows } = await sql`SELECT id, name, email FROM users ORDER BY id ASC`;
+    return rows as unknown as User[];
+}
+
+async function writeUsersToDb(fileUsers: User[]): Promise<void> {
+    await ensureUsersTable();
+    // Upsert full snapshot: simple approach for this demo.
+    await sql`TRUNCATE TABLE users RESTART IDENTITY;`;
+    for (const u of fileUsers) {
+        await sql`INSERT INTO users (name, email) VALUES (${u.name}, ${u.email});`;
+    }
 }
 
 async function renderHome(res: Response, locals?: Record<string, unknown>): Promise<void> {
@@ -163,11 +196,11 @@ app.post('/users', async (req: Request, res: Response) => {
         return;
     }
     try {
-        const fileUsers = await readUsers();
-        const nextId = fileUsers.reduce((max, u) => (u.id > max ? u.id : max), 0) + 1;
+        const currentUsers = await readUsers();
+        const nextId = currentUsers.reduce((max, u) => (u.id > max ? u.id : max), 0) + 1;
         const newUser: User = { id: nextId, name, email };
-        fileUsers.push(newUser);
-        await writeUsers(fileUsers);
+        currentUsers.push(newUser);
+        await writeUsers(currentUsers);
         return res.redirect('/');
     } catch (e) {
         console.error(e);

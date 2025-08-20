@@ -17,6 +17,7 @@
   },
   "dependencies": {
     "@vercel/blob": "^0.23.4",
+    "@vercel/postgres": "^0.10.0",
     "ejs": "^3.1.10",
     "express": "^5.1.0"
   },

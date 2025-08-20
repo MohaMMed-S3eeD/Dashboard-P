@@ -8,6 +8,7 @@ const path_1 = __importDefault(require("path"));
 const fs_1 = __importDefault(require("fs"));
 const promises_1 = __importDefault(require("fs/promises"));
 const blob_1 = require("@vercel/blob");
+const postgres_1 = require("@vercel/postgres");
 const app = (0, express_1.default)();
 const PORT = process.env.PORT || 3000;
 app.use(express_1.default.json());
@@ -28,6 +29,9 @@ const dataFile = path_1.default.join(dataDir, 'users.json');
 const blobKey = 'data/users.json';
 function isBlobEnabled() {
     return Boolean(process.env.BLOB_READ_WRITE_TOKEN || process.env.VERCEL);
+}
+function isDbEnabled() {
+    return Boolean(process.env.POSTGRES_URL || process.env.POSTGRES_PRISMA_URL || process.env.POSTGRES_URL_NON_POOLING);
 }
 async function ensureDataFileExists() {
     try {
@@ -79,14 +83,39 @@ async function writeUsersToBlob(fileUsers) {
     });
 }
 async function readUsers() {
+    if (isDbEnabled())
+        return await readUsersFromDb();
     if (isBlobEnabled())
         return await readUsersFromBlob();
     return await readUsersFromFile();
 }
 async function writeUsers(fileUsers) {
+    if (isDbEnabled())
+        return await writeUsersToDb(fileUsers);
     if (isBlobEnabled())
         return await writeUsersToBlob(fileUsers);
     return await writeUsersToFile(fileUsers);
+}
+async function ensureUsersTable() {
+    await (0, postgres_1.sql) `
+        CREATE TABLE IF NOT EXISTS users (
+            id SERIAL PRIMARY KEY,
+            name TEXT NOT NULL,
+            email TEXT NOT NULL
+        );
+    `;
+}
+async function readUsersFromDb() {
+    await ensureUsersTable();
+    const { rows } = await (0, postgres_1.sql) `SELECT id, name, email FROM users ORDER BY id ASC`;
+    return rows;
+}
+async function writeUsersToDb(fileUsers) {
+    await ensureUsersTable();
+    await (0, postgres_1.sql) `TRUNCATE TABLE users RESTART IDENTITY;`;
+    for (const u of fileUsers) {
+        await (0, postgres_1.sql) `INSERT INTO users (name, email) VALUES (${u.name}, ${u.email});`;
+    }
 }
 async function renderHome(res, locals) {
     const fileUsers = await readUsers();
@@ -141,11 +170,11 @@ app.post('/users', async (req, res) => {
         return;
     }
     try {
-        const fileUsers = await readUsers();
-        const nextId = fileUsers.reduce((max, u) => (u.id > max ? u.id : max), 0) + 1;
+        const currentUsers = await readUsers();
+        const nextId = currentUsers.reduce((max, u) => (u.id > max ? u.id : max), 0) + 1;
         const newUser = { id: nextId, name, email };
-        fileUsers.push(newUser);
-        await writeUsers(fileUsers);
+        currentUsers.push(newUser);
+        await writeUsers(currentUsers);
         return res.redirect('/');
     }
     catch (e) {
