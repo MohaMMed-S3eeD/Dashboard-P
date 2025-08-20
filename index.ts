@@ -2,6 +2,7 @@ import express, { Request, Response, NextFunction } from 'express';
 import path from 'path';
 import fs from 'fs';
 import fsPromises from 'fs/promises';
+import { put, list } from '@vercel/blob';
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -26,9 +27,14 @@ app.get('/', async (req: Request, res: Response) => {
 // Shared types
 type User = { id: number; name: string; email: string };
 
-// File-based storage helpers
+// Storage helpers (file in dev, Vercel Blob in prod)
 const dataDir = path.join(__dirname, 'data');
 const dataFile = path.join(dataDir, 'users.json');
+const blobKey = 'data/users.json';
+
+function isBlobEnabled(): boolean {
+    return Boolean(process.env.BLOB_READ_WRITE_TOKEN || process.env.VERCEL);
+}
 
 async function ensureDataFileExists(): Promise<void> {
     try {
@@ -57,8 +63,40 @@ async function writeUsersToFile(fileUsers: User[]): Promise<void> {
     await fsPromises.writeFile(dataFile, JSON.stringify(fileUsers, null, 2), 'utf-8');
 }
 
+async function readUsersFromBlob(): Promise<User[]> {
+    try {
+        const blobs = await list({ prefix: blobKey, limit: 1 });
+        const entry = blobs.blobs.find(b => b.pathname === blobKey) || blobs.blobs[0];
+        if (!entry) return [];
+        const res = await fetch(entry.url);
+        if (!res.ok) return [];
+        const parsed = await res.json();
+        return Array.isArray(parsed) ? parsed : [];
+    } catch {
+        return [];
+    }
+}
+
+async function writeUsersToBlob(fileUsers: User[]): Promise<void> {
+    await put(blobKey, JSON.stringify(fileUsers, null, 2), {
+        access: 'public',
+        addRandomSuffix: false,
+        contentType: 'application/json; charset=utf-8',
+    });
+}
+
+async function readUsers(): Promise<User[]> {
+    if (isBlobEnabled()) return await readUsersFromBlob();
+    return await readUsersFromFile();
+}
+
+async function writeUsers(fileUsers: User[]): Promise<void> {
+    if (isBlobEnabled()) return await writeUsersToBlob(fileUsers);
+    return await writeUsersToFile(fileUsers);
+}
+
 async function renderHome(res: Response, locals?: Record<string, unknown>): Promise<void> {
-    const fileUsers = await readUsersFromFile();
+    const fileUsers = await readUsers();
     res.render('index', { users: fileUsers, ...(locals || {}) });
 }
 
@@ -82,10 +120,10 @@ app.get('/api/users', (req: Request, res: Response) => {
 // File-backed Users - List
 app.get('/api/users-file', async (req: Request, res: Response) => {
     try {
-        const fileUsers = await readUsersFromFile();
+        const fileUsers = await readUsers();
         res.json(fileUsers);
     } catch (e) {
-        res.status(500).json({ error: 'Failed to read users from file' });
+        res.status(500).json({ error: 'Failed to read users' });
     }
 });
 
@@ -125,11 +163,11 @@ app.post('/users', async (req: Request, res: Response) => {
         return;
     }
     try {
-        const fileUsers = await readUsersFromFile();
+        const fileUsers = await readUsers();
         const nextId = fileUsers.reduce((max, u) => (u.id > max ? u.id : max), 0) + 1;
         const newUser: User = { id: nextId, name, email };
         fileUsers.push(newUser);
-        await writeUsersToFile(fileUsers);
+        await writeUsers(fileUsers);
         return res.redirect('/');
     } catch (e) {
         console.error(e);
